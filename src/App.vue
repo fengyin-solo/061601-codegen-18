@@ -11,6 +11,8 @@ import SaveModal from './components/SaveModal.vue'
 import CardCollection from './components/CardCollection.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
 import GiftModal from './components/GiftModal.vue'
+import NewGamePlusModal from './components/NewGamePlusModal.vue'
+import EndingModal from './components/EndingModal.vue'
 
 const gameStore = useGameStore()
 const saveStore = useSaveStore()
@@ -19,6 +21,7 @@ const showSaveModal = ref(false)
 const showCards = ref(false)
 const showHistory = ref(false)
 const showGiftModal = ref(false)
+const showNgpModal = ref(false)
 
 const theme = computed(() => gameStore.darkMode ? 'dark' : 'light')
 
@@ -30,6 +33,17 @@ watch(theme, (newTheme) => {
   document.documentElement.setAttribute('data-theme', newTheme)
 })
 
+function handleReset() {
+  if (confirm('确定要重新开始游戏吗？当前进度将丢失。')) {
+    gameStore.resetGame()
+  }
+}
+
+function handleStartNgpFromEnding() {
+  gameStore.closeEndingModal()
+  showNgpModal = true
+}
+
 onMounted(() => {
   document.documentElement.setAttribute('data-theme', theme.value)
   
@@ -37,6 +51,7 @@ onMounted(() => {
   if (hasSave) {
     if (confirm('检测到自动存档，是否继续游戏？')) {
       saveStore.loadAutoSave()
+      gameStore.initGame()
     } else {
       gameStore.resetGame()
     }
@@ -53,7 +68,8 @@ onMounted(() => {
       @toggle-cards="showCards = true"
       @toggle-history="showHistory = true"
       @toggle-theme="gameStore.toggleDarkMode()"
-      @reset="gameStore.resetGame()"
+      @reset="handleReset()"
+      @toggle-ngp="showNgpModal = true"
     />
     
     <div class="main-content">
@@ -72,6 +88,12 @@ onMounted(() => {
     <CardCollection v-if="showCards" @close="showCards = false" />
     <HistoryPanel v-if="showHistory" @close="showHistory = false" />
     <GiftModal v-if="showGiftModal" @close="showGiftModal = false" />
+    <NewGamePlusModal v-if="showNgpModal" @close="showNgpModal = false" />
+    <EndingModal 
+      v-if="gameStore.showEndingModal" 
+      @start-ngp="handleStartNgpFromEnding"
+      @close="gameStore.closeEndingModal()"
+    />
   </div>
 </template>
 

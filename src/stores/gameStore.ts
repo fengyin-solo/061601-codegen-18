@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TimeOfDay, ActionType, GameEventConfig, EventChoice } from '../types/game'
+import type { TimeOfDay, ActionType, GameEventConfig, EventChoice, DifficultyMode, InheritContentType, NewGamePlusData, EndingConfig } from '../types/game'
 import gameConfig from '../config/gameConfig'
 import {
   clamp,
@@ -13,6 +13,8 @@ import {
   getNextTimeSlot,
   getMoodLabel
 } from '../utils/gameUtils'
+
+const NGPLUS_STORAGE_KEY = 'love_story_ngplus_data'
 
 export interface CharacterState {
   id: string
@@ -52,6 +54,14 @@ export const useGameStore = defineStore('game', () => {
   const currentEvent = ref<GameEventConfig | null>(null)
   const showEventModal = ref(false)
   const darkMode = ref(false)
+  const difficultyMode = ref<DifficultyMode>('normal')
+  const isNewGamePlus = ref(false)
+  const playthroughCount = ref(0)
+  const inheritedContent = ref<InheritContentType[]>([])
+  const gameCleared = ref(false)
+  const currentEnding = ref<EndingConfig | null>(null)
+  const showEndingModal = ref(false)
+  const gameStartTime = ref(Date.now())
 
   const characters = ref<CharacterState[]>(
     gameConfig.characters.map(c => ({
@@ -69,6 +79,18 @@ export const useGameStore = defineStore('game', () => {
   const history = ref<HistorySnapshot[]>([])
   let logIdCounter = 0
 
+  const ngplusData = ref<NewGamePlusData>({
+    playthroughCount: 0,
+    highestDifficultyCleared: 'normal',
+    allClearedDifficulties: [],
+    inheritedCards: [],
+    unlockedCharacters: [],
+    maxAffinityReached: {},
+    totalPlayTime: 0,
+    flags: [],
+    clearedEndings: []
+  })
+
   const unlockedCharacters = computed(() =>
     characters.value.filter(c => c.unlocked)
   )
@@ -80,6 +102,23 @@ export const useGameStore = defineStore('game', () => {
   const currentCharacterConfig = computed(() =>
     gameConfig.characters.find(c => c.id === selectedCharacterId.value) || null
   )
+
+  const currentDifficultyConfig = computed(() =>
+    gameConfig.difficulties.find(d => d.mode === difficultyMode.value) || gameConfig.difficulties[0]
+  )
+
+  const availableDifficulties = computed(() => {
+    const difficulties = [gameConfig.difficulties[0]]
+    if (ngplusData.value.playthroughCount >= 1) {
+      difficulties.push(gameConfig.difficulties[1])
+    }
+    if (ngplusData.value.allClearedDifficulties.includes('hard')) {
+      difficulties.push(gameConfig.difficulties[2])
+    }
+    return difficulties
+  })
+
+  const canStartNewGamePlus = computed(() => ngplusData.value.playthroughCount >= 1)
 
   function addLog(type: LogEntry['type'], message: string, characterId?: string) {
     logs.value.push({
@@ -180,17 +219,20 @@ export const useGameStore = defineStore('game', () => {
   function nextDay() {
     day.value++
     timeSlot.value = gameConfig.timeSlots[0]
-    actionsRemaining.value = gameConfig.maxActionsPerDay
+    actionsRemaining.value = currentDifficultyConfig.value.maxActionsPerDay
+
+    const moodDecay = currentDifficultyConfig.value.moodDecayPerDay
+    const affinityDecay = currentDifficultyConfig.value.affinityDecayPerDay
 
     characters.value.forEach(char => {
       if (char.unlocked) {
         char.mood = clamp(
-          char.mood - gameConfig.moodDecayPerDay,
+          char.mood - moodDecay,
           gameConfig.minMood,
           gameConfig.maxMood
         )
         char.affinity = clamp(
-          char.affinity - gameConfig.affinityDecayPerDay,
+          char.affinity - affinityDecay,
           gameConfig.minAffinity,
           gameConfig.maxAffinity
         )
@@ -198,6 +240,9 @@ export const useGameStore = defineStore('game', () => {
     })
 
     addLog('system', `🌅 第 ${day.value} 天开始了`)
+    if (day.value > gameConfig.gameDurationDays) {
+      checkGameEnding()
+    }
   }
 
   function performAction(actionType: ActionType, targetId?: string, giftId?: string) {
@@ -237,12 +282,13 @@ export const useGameStore = defineStore('game', () => {
     const topic = charConfig.chatTopics[
       randomInt(0, charConfig.chatTopics.length - 1)
     ]
-    const affinityChange = calculateChatAffinity(
+    const baseAffinityChange = calculateChatAffinity(
       topic.topic,
       charConfig,
       charState.mood,
       timeSlot.value
     )
+    const affinityChange = Math.round(baseAffinityChange * currentDifficultyConfig.value.affinityGainMultiplier * 10) / 10
 
     updateCharacterAffinity(characterId, affinityChange)
     updateCharacterMood(characterId, affinityChange > 0 ? 5 : -3)
@@ -269,19 +315,20 @@ export const useGameStore = defineStore('game', () => {
     const charConfig = gameConfig.characters.find(c => c.id === characterId)
     const giftConfig = gameConfig.gifts.find(g => g.id === giftId)
     if (!charState || !charConfig || !giftConfig || !charState.unlocked) return false
-    if (resources.value < giftConfig.price) {
+    const adjustedPrice = Math.round(giftConfig.price * currentDifficultyConfig.value.giftCostMultiplier)
+    if (resources.value < adjustedPrice) {
       addLog('system', '💰 代币不足！')
       return false
     }
+    resources.value -= adjustedPrice
 
-    resources.value -= giftConfig.price
-
-    const affinityChange = calculateGiftAffinity(
+    const baseAffinityChange = calculateGiftAffinity(
       giftId,
       charConfig,
       giftConfig.price,
       charState.mood
     )
+    const affinityChange = Math.round(baseAffinityChange * currentDifficultyConfig.value.affinityGainMultiplier * 10) / 10
 
     updateCharacterAffinity(characterId, affinityChange)
     updateCharacterMood(
@@ -307,7 +354,8 @@ export const useGameStore = defineStore('game', () => {
 
   function performWork(): boolean {
     const { min, max } = gameConfig.workRewards
-    const earned = randomInt(min, max)
+    const baseEarned = randomInt(min, max)
+    const earned = Math.round(baseEarned * currentDifficultyConfig.value.workRewardMultiplier)
     resources.value += earned
 
     characters.value.forEach(char => {
@@ -418,14 +466,200 @@ export const useGameStore = defineStore('game', () => {
     darkMode.value = !darkMode.value
   }
 
-  function resetGame() {
+  function loadNgPlusData() {
+    try {
+      const raw = localStorage.getItem(NGPLUS_STORAGE_KEY)
+      if (raw) {
+        ngplusData.value = JSON.parse(raw) as NewGamePlusData
+      }
+    } catch (e) {
+      console.error('Failed to load NewGame+ data:', e)
+    }
+  }
+
+  function saveNgPlusData() {
+    try {
+      localStorage.setItem(NGPLUS_STORAGE_KEY, JSON.stringify(ngplusData.value))
+    } catch (e) {
+      console.error('Failed to save NewGame+ data:', e)
+    }
+  }
+
+  function updateMaxAffinityRecords() {
+    characters.value.forEach(char => {
+      const current = ngplusData.value.maxAffinityReached[char.id] || 0
+      if (char.affinity > current) {
+        ngplusData.value.maxAffinityReached[char.id] = char.affinity
+      }
+      if (char.unlocked && !ngplusData.value.unlockedCharacters.includes(char.id)) {
+        ngplusData.value.unlockedCharacters.push(char.id)
+      }
+    })
+  }
+
+  function checkGameEnding() {
+    updateMaxAffinityRecords()
+    const playTime = Date.now() - gameStartTime.value
+    ngplusData.value.totalPlayTime += playTime
+
+    const allMaxed = characters.value.every(c => !c.unlocked || c.affinity >= gameConfig.maxAffinity)
+    if (allMaxed && characters.value.filter(c => c.unlocked).length >= 3) {
+      flags.value.push('all_characters_max')
+    }
+
+    if (difficultyMode.value === 'hard' || difficultyMode.value === 'nightmare') {
+      flags.value.push('hard_or_higher')
+    }
+    if (difficultyMode.value === 'nightmare') {
+      flags.value.push('nightmare_mode')
+      if (flags.value.includes('unlock_mystery')) {
+        flags.value.push('nightmare_clear')
+      }
+    }
+
+    let ending: EndingConfig | null = null
+    const candidateEndings = gameConfig.endings.filter(e => {
+      if (e.isHidden && !ngplusData.value.allClearedDifficulties.includes('hard') && !isNewGamePlus.value) {
+        return false
+      }
+      if (e.unlockCondition === 'nightmare_difficulty' && difficultyMode.value !== 'nightmare') {
+        return false
+      }
+      if (e.characterId) {
+        const char = characters.value.find(c => c.id === e.characterId)
+        if (!char || !char.unlocked) return false
+        if (e.minAffinity && char.affinity < e.minAffinity) return false
+      }
+      if (e.requiredFlags) {
+        if (!e.requiredFlags.every(f => flags.value.includes(f))) return false
+      }
+      return true
+    })
+
+    candidateEndings.sort((a, b) => {
+      const aScore = (a.isHidden ? 100 : 0) + (a.minAffinity || 0)
+      const bScore = (b.isHidden ? 100 : 0) + (b.minAffinity || 0)
+      return bScore - aScore
+    })
+
+    if (candidateEndings.length > 0) {
+      ending = candidateEndings[0]
+    }
+
+    currentEnding.value = ending
+    gameCleared.value = true
+    showEndingModal.value = true
+
+    ngplusData.value.playthroughCount++
+    playthroughCount.value = ngplusData.value.playthroughCount
+    if (!ngplusData.value.allClearedDifficulties.includes(difficultyMode.value)) {
+      ngplusData.value.allClearedDifficulties.push(difficultyMode.value)
+    }
+    const diffOrder: Record<DifficultyMode, number> = { normal: 0, hard: 1, nightmare: 2 }
+    if (diffOrder[difficultyMode.value] > diffOrder[ngplusData.value.highestDifficultyCleared]) {
+      ngplusData.value.highestDifficultyCleared = difficultyMode.value
+    }
+    ngplusData.value.inheritedCards = [...new Set([...ngplusData.value.inheritedCards, ...collectedCards.value])]
+    if (ending && !ngplusData.value.clearedEndings.includes(ending.id)) {
+      ngplusData.value.clearedEndings.push(ending.id)
+    }
+    ngplusData.value.flags = [...new Set([...ngplusData.value.flags, ...flags.value])]
+    saveNgPlusData()
+  }
+
+  function startNewGamePlus(selectedInherit: InheritContentType[], selectedDifficulty: DifficultyMode) {
+    difficultyMode.value = selectedDifficulty
+    isNewGamePlus.value = true
+    inheritedContent.value = selectedInherit
+    playthroughCount.value = ngplusData.value.playthroughCount
+    gameCleared.value = false
+    currentEnding.value = null
+    showEndingModal.value = false
+
+    const diffConfig = gameConfig.difficulties.find(d => d.mode === selectedDifficulty) || gameConfig.difficulties[0]
+
     day.value = 1
     timeSlot.value = 'morning'
-    actionsRemaining.value = gameConfig.maxActionsPerDay
-    resources.value = gameConfig.initialResources
+    actionsRemaining.value = diffConfig.maxActionsPerDay
+    let startResources = diffConfig.initialResources
+    if (selectedInherit.includes('resources')) {
+      startResources += 50
+    }
+    resources.value = startResources
     selectedCharacterId.value = null
     currentEvent.value = null
     showEventModal.value = false
+    gameStartTime.value = Date.now()
+
+    characters.value = gameConfig.characters.map(c => {
+      let baseAff = c.baseAffinity
+      if (selectedInherit.includes('affinity_bonus')) {
+        baseAff += 10
+      }
+      let shouldUnlock = c.unlocked && !c.hidden
+      if (c.unlockCondition === 'new_game_plus' && isNewGamePlus.value) {
+        shouldUnlock = true
+      }
+      if (selectedInherit.includes('character_info') && ngplusData.value.unlockedCharacters.includes(c.id)) {
+        shouldUnlock = true
+      }
+      return {
+        id: c.id,
+        affinity: baseAff,
+        mood: c.baseMood,
+        unlocked: shouldUnlock
+      }
+    })
+
+    flags.value = ['new_game_plus']
+    if (selectedDifficulty === 'hard' || selectedDifficulty === 'nightmare') {
+      flags.value.push('hard_or_higher')
+    }
+    if (selectedDifficulty === 'nightmare') {
+      flags.value.push('nightmare_mode')
+    }
+    triggeredEvents.value = []
+
+    collectedCards.value = []
+    if (selectedInherit.includes('cards')) {
+      collectedCards.value = [...ngplusData.value.inheritedCards]
+    }
+    const ngpCard = gameConfig.cards.find(c => c.unlockCondition === 'new_game_plus_start')
+    if (ngpCard && !collectedCards.value.includes(ngpCard.id)) {
+      collectedCards.value.push(ngpCard.id)
+    }
+
+    logs.value = []
+    history.value = []
+    logIdCounter = 0
+
+    addLog('system', `🌟 二周目开启！第 ${playthroughCount.value} 轮游戏开始`)
+    addLog('system', `当前难度：${diffConfig.icon} ${diffConfig.name}`)
+    if (selectedInherit.length > 0) {
+      const names = selectedInherit.map(t => gameConfig.inheritOptions.find(o => o.type === t)?.name).filter(Boolean).join('、')
+      addLog('system', `已继承：${names}`)
+    }
+    checkAndTriggerEvent()
+  }
+
+  function resetGame() {
+    loadNgPlusData()
+    difficultyMode.value = 'normal'
+    isNewGamePlus.value = false
+    inheritedContent.value = []
+    gameCleared.value = false
+    currentEnding.value = null
+    showEndingModal.value = false
+    playthroughCount.value = ngplusData.value.playthroughCount
+
+    day.value = 1
+    timeSlot.value = 'morning'
+    actionsRemaining.value = gameConfig.difficulties[0].maxActionsPerDay
+    resources.value = gameConfig.difficulties[0].initialResources
+    selectedCharacterId.value = null
+    currentEvent.value = null
+    showEventModal.value = false
+    gameStartTime.value = Date.now()
 
     characters.value = gameConfig.characters.map(c => ({
       id: c.id,
@@ -446,10 +680,16 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function initGame() {
+    loadNgPlusData()
+    playthroughCount.value = ngplusData.value.playthroughCount
     if (logs.value.length === 0) {
       addLog('system', '🎮 游戏开始！欢迎来到恋爱物语')
     }
     checkAndTriggerEvent()
+  }
+
+  function closeEndingModal() {
+    showEndingModal.value = false
   }
 
   return {
@@ -470,6 +710,17 @@ export const useGameStore = defineStore('game', () => {
     currentEvent,
     showEventModal,
     darkMode,
+    difficultyMode,
+    isNewGamePlus,
+    playthroughCount,
+    inheritedContent,
+    gameCleared,
+    currentEnding,
+    showEndingModal,
+    ngplusData,
+    currentDifficultyConfig,
+    availableDifficulties,
+    canStartNewGamePlus,
     addLog,
     saveHistory,
     rollbackToStep,
@@ -482,6 +733,11 @@ export const useGameStore = defineStore('game', () => {
     toggleDarkMode,
     resetGame,
     initGame,
-    checkAndTriggerEvent
+    checkAndTriggerEvent,
+    startNewGamePlus,
+    loadNgPlusData,
+    saveNgPlusData,
+    closeEndingModal,
+    updateMaxAffinityRecords
   }
 })

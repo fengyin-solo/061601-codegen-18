@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useGameStore } from '../stores/gameStore'
 import { getTimeLabel, getTimeIcon } from '../utils/gameUtils'
+import { computed } from 'vue'
 
 const emit = defineEmits<{
   (e: 'toggle-save'): void
@@ -8,9 +9,13 @@ const emit = defineEmits<{
   (e: 'toggle-history'): void
   (e: 'toggle-theme'): void
   (e: 'reset'): void
+  (e: 'toggle-ngp'): void
 }>()
 
 const gameStore = useGameStore()
+
+const difficultyLabel = computed(() => gameStore.currentDifficultyConfig)
+const playthroughLabel = computed(() => gameStore.playthroughCount > 0 ? `第${gameStore.playthroughCount + 1}周` : '')
 </script>
 
 <template>
@@ -18,6 +23,11 @@ const gameStore = useGameStore()
     <div class="game-title">
       <span class="title-icon">💝</span>
       <h1>恋爱物语</h1>
+      <div v-if="gameStore.isNewGamePlus" class="ngp-badge">🌟 NG+</div>
+      <div v-if="playthroughLabel" class="playthrough-badge">{{ playthroughLabel }}</div>
+      <div class="difficulty-badge" :class="gameStore.difficultyMode">
+        {{ difficultyLabel.icon }} {{ difficultyLabel.name }}
+      </div>
     </div>
 
     <div class="status-info">
@@ -40,6 +50,14 @@ const gameStore = useGameStore()
     </div>
 
     <div class="toolbar">
+      <button 
+        v-if="gameStore.canStartNewGamePlus" 
+        class="toolbar-btn ngp-btn" 
+        @click="emit('toggle-ngp')" 
+        title="New Game+ 二周目"
+      >
+        🌟
+      </button>
       <button class="toolbar-btn" @click="emit('toggle-cards')" title="卡牌收藏">
         🎴
       </button>
@@ -87,6 +105,46 @@ const gameStore = useGameStore()
   background-clip: text;
 }
 
+.ngp-badge {
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #f59e0b, #ec4899);
+  color: white;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.playthrough-badge {
+  padding: 4px 10px;
+  background: var(--accent-light);
+  color: var(--accent-primary);
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.difficulty-badge {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.difficulty-badge.normal {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.difficulty-badge.hard {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.difficulty-badge.nightmare {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .status-info {
   display: flex;
   gap: 20px;
@@ -132,6 +190,24 @@ const gameStore = useGameStore()
 
 .toolbar-btn.reset:hover {
   background: #fee2e2;
+}
+
+.toolbar-btn.ngp-btn {
+  background: linear-gradient(135deg, #fef3c7, #fce7f3);
+  animation: ngp-pulse 2s ease-in-out infinite;
+}
+
+.toolbar-btn.ngp-btn:hover {
+  background: linear-gradient(135deg, #fde68a, #fbcfe8);
+}
+
+@keyframes ngp-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+  }
 }
 
 @media (max-width: 768px) {

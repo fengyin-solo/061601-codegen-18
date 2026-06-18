@@ -12,11 +12,21 @@ const gameStore = useGameStore()
 const selectedCharacterId = ref<string | null>(null)
 
 const characters = computed(() => 
-  gameConfig.characters.filter(c => !c.hidden || gameStore.collectedCards.some(cardId => {
-    const card = gameConfig.cards.find(cc => cc.id === cardId)
-    return card?.characterId === c.id
-  }))
+  gameConfig.characters.filter(c => {
+    if (!c.hidden) return true
+    if (gameStore.collectedCards.some(cardId => {
+      const card = gameConfig.cards.find(cc => cc.id === cardId)
+      return card?.characterId === c.id
+    })) return true
+    if (gameStore.ngplusData.unlockedCharacters.includes(c.id)) return true
+    if (c.unlockCondition === 'new_game_plus' && gameStore.playthroughCount > 0) return true
+    return false
+  })
 )
+
+function isInheritedCard(cardId: string): boolean {
+  return gameStore.isNewGamePlus && gameStore.ngplusData.inheritedCards.includes(cardId)
+}
 
 const filteredCards = computed(() => {
   if (selectedCharacterId.value) {
@@ -90,7 +100,7 @@ function getCharacterAvatar(characterId: string): string {
             v-for="card in filteredCards"
             :key="card.id"
             class="card-item"
-            :class="{ collected: isCollected(card.id), locked: !isCollected(card.id) }"
+            :class="{ collected: isCollected(card.id), locked: !isCollected(card.id), inherited: isInheritedCard(card.id) }"
           >
             <div 
               class="card-image"
@@ -98,6 +108,7 @@ function getCharacterAvatar(characterId: string): string {
             >
               <span v-if="isCollected(card.id)" class="card-icon">{{ card.image }}</span>
               <span v-else class="card-locked">🔒</span>
+              <span v-if="isInheritedCard(card.id)" class="inherit-badge">🌟</span>
             </div>
             <div class="card-info">
               <span class="card-name">{{ isCollected(card.id) ? card.name : '???' }}</span>
@@ -108,7 +119,10 @@ function getCharacterAvatar(characterId: string): string {
                 {{ getRarityLabel(card.rarity) }}
               </span>
             </div>
-            <p v-if="isCollected(card.id)" class="card-desc">{{ card.description }}</p>
+            <p v-if="isCollected(card.id)" class="card-desc">
+              {{ card.description }}
+              <span v-if="isInheritedCard(card.id)" class="inherit-tag">继承</span>
+            </p>
             <p v-else class="card-desc locked">未解锁</p>
           </div>
         </div>
@@ -223,6 +237,11 @@ function getCharacterAvatar(characterId: string): string {
   opacity: 0.6;
 }
 
+.card-item.inherited {
+  position: relative;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
 .card-image {
   width: 80px;
   height: 80px;
@@ -233,6 +252,32 @@ function getCharacterAvatar(characterId: string): string {
   justify-content: center;
   border: 3px solid var(--border-color);
   font-size: 36px;
+  position: relative;
+}
+
+.inherit-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 16px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inherit-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  background: linear-gradient(135deg, #f59e0b, #ec4899);
+  color: white;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .card-locked {

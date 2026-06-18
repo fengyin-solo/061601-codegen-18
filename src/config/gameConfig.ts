@@ -5,6 +5,7 @@ export const gameConfig: GameConfig = {
   initialResources: 100,
   maxActionsPerDay: 3,
   daysPerWeek: 7,
+  gameDurationDays: 30,
   maxAffinity: 100,
   minAffinity: -50,
   maxMood: 100,
@@ -12,6 +13,114 @@ export const gameConfig: GameConfig = {
   moodDecayPerDay: 5,
   affinityDecayPerDay: 1,
   timeSlots: ['morning', 'afternoon', 'evening', 'night'],
+
+  difficulties: [
+    {
+      mode: 'normal',
+      name: '普通',
+      description: '标准难度，适合初次游玩',
+      icon: '🌱',
+      initialResources: 100,
+      maxActionsPerDay: 3,
+      moodDecayPerDay: 5,
+      affinityDecayPerDay: 1,
+      workRewardMultiplier: 1,
+      affinityGainMultiplier: 1,
+      giftCostMultiplier: 1
+    },
+    {
+      mode: 'hard',
+      name: '困难',
+      description: '资源更紧张，好感度衰减更快，解锁隐藏线',
+      icon: '🔥',
+      initialResources: 60,
+      maxActionsPerDay: 2,
+      moodDecayPerDay: 8,
+      affinityDecayPerDay: 2,
+      workRewardMultiplier: 0.8,
+      affinityGainMultiplier: 0.85,
+      giftCostMultiplier: 1.3
+    },
+    {
+      mode: 'nightmare',
+      name: '噩梦',
+      description: '极致挑战，解锁真结局',
+      icon: '💀',
+      initialResources: 30,
+      maxActionsPerDay: 2,
+      moodDecayPerDay: 12,
+      affinityDecayPerDay: 3,
+      workRewardMultiplier: 0.6,
+      affinityGainMultiplier: 0.7,
+      giftCostMultiplier: 1.5
+    }
+  ],
+
+  inheritOptions: [
+    {
+      type: 'cards',
+      name: '卡牌收藏',
+      description: '保留已收集的全部卡牌',
+      icon: '🎴'
+    },
+    {
+      type: 'character_info',
+      name: '角色情报',
+      description: '解锁已认识角色的完整资料',
+      icon: '📖'
+    },
+    {
+      type: 'affinity_bonus',
+      name: '好感度加成',
+      description: '所有角色初始好感度+10',
+      icon: '💕'
+    },
+    {
+      type: 'resources',
+      name: '启动资金',
+      description: '初始代币+50',
+      icon: '💰'
+    }
+  ],
+
+  endings: [
+    {
+      id: 'ending_linxiaoyu',
+      name: '樱花之约',
+      description: '与林小雨在樱花树下许下永恒的承诺',
+      characterId: 'linxiaoyu',
+      minAffinity: 90
+    },
+    {
+      id: 'ending_sufei',
+      name: '咖啡香中',
+      description: '成为苏菲咖啡馆的合伙人，也是她人生的合伙人',
+      characterId: 'sufei',
+      minAffinity: 90
+    },
+    {
+      id: 'ending_yeqing',
+      name: '月光奏鸣',
+      description: '叶青终于敞开心扉，与你共谱一曲月光奏鸣曲',
+      characterId: 'yeqing',
+      minAffinity: 90
+    },
+    {
+      id: 'ending_harem',
+      name: '恋爱物语',
+      description: '与所有人都建立了深厚的羁绊，故事还在继续...',
+      requiredFlags: ['all_characters_max'],
+      isHidden: true
+    },
+    {
+      id: 'ending_true',
+      name: '真相',
+      description: '揭开这座城市背后的秘密，真结局（仅噩梦难度）',
+      requiredFlags: ['unlock_mystery', 'nightmare_clear'],
+      isHidden: true,
+      unlockCondition: 'nightmare_difficulty'
+    }
+  ],
 
   characters: [
     {
@@ -72,6 +181,27 @@ export const gameConfig: GameConfig = {
       unlocked: false,
       hidden: true,
       unlockCondition: 'unlock_yeqing'
+    },
+    {
+      id: 'xingchen',
+      name: '星辰',
+      avatar: '✨',
+      description: '二周目解锁的神秘少女，似乎知道一切的真相',
+      personality: '优雅神秘，话语中总带着深意，仿佛能预知未来',
+      favoriteGifts: ['music_box', 'book', 'flower'],
+      dislikedGifts: ['alcohol', 'game_console'],
+      chatTopics: [
+        { topic: '文学', affinity: 3 },
+        { topic: '音乐', affinity: 3 },
+        { topic: '天气', affinity: 2 },
+        { topic: '游戏', affinity: 0 },
+        { topic: '运动', affinity: -2 }
+      ],
+      baseAffinity: 5,
+      baseMood: 60,
+      unlocked: false,
+      hidden: true,
+      unlockCondition: 'new_game_plus'
     }
   ],
 
@@ -96,7 +226,14 @@ export const gameConfig: GameConfig = {
     { id: 'sufei_epic_1', name: '深夜游戏', characterId: 'sufei', rarity: 'epic', image: '🎮', description: '一起打游戏到深夜', unlockCondition: 'sufei_affinity_70' },
     { id: 'sufei_legendary_1', name: '夕阳下的吻', characterId: 'sufei', rarity: 'legendary', image: '🌅', description: '咖啡馆关门前的浪漫时刻', unlockCondition: 'sufei_affinity_100' },
     { id: 'yeqing_common_1', name: '月下身影', characterId: 'yeqing', rarity: 'common', image: '🌙', description: '月光下独自散步的叶青', unlockCondition: 'meet_yeqing' },
-    { id: 'yeqing_rare_1', name: '琴音缭绕', characterId: 'yeqing', rarity: 'rare', image: '🎹', description: '叶青弹奏钢琴的样子', unlockCondition: 'yeqing_affinity_40' }
+    { id: 'yeqing_rare_1', name: '琴音缭绕', characterId: 'yeqing', rarity: 'rare', image: '🎹', description: '叶青弹奏钢琴的样子', unlockCondition: 'yeqing_affinity_40' },
+    { id: 'yeqing_epic_1', name: '星夜告白', characterId: 'yeqing', rarity: 'epic', image: '🌌', description: '在星空下，叶青终于说出了她的秘密', unlockCondition: 'yeqing_affinity_70' },
+    { id: 'yeqing_legendary_1', name: '永恒约定', characterId: 'yeqing', rarity: 'legendary', image: '💍', description: '约定好要一起看遍每一个星空', unlockCondition: 'yeqing_affinity_100' },
+    { id: 'xingchen_common_1', name: '初见星辰', characterId: 'xingchen', rarity: 'common', image: '✨', description: '她的出现仿佛命中注定', unlockCondition: 'meet_xingchen' },
+    { id: 'xingchen_rare_1', name: '命运之书', characterId: 'xingchen', rarity: 'rare', image: '📖', description: '星辰给你看了一本写着你名字的书', unlockCondition: 'xingchen_affinity_40' },
+    { id: 'xingchen_epic_1', name: '时空裂隙', characterId: 'xingchen', rarity: 'epic', image: '🌀', description: '真相开始浮出水面', unlockCondition: 'xingchen_affinity_70' },
+    { id: 'xingchen_legendary_1', name: '新世界', characterId: 'xingchen', rarity: 'legendary', image: '🌟', description: '与她一起，走向新的世界', unlockCondition: 'xingchen_affinity_100' },
+    { id: 'special_newgame_1', name: '二周目纪念', characterId: 'linxiaoyu', rarity: 'legendary', image: '🎊', description: '纪念你的第一次二周目之旅', unlockCondition: 'new_game_plus_start' }
   ],
 
   events: [
@@ -296,6 +433,114 @@ export const gameConfig: GameConfig = {
       ],
       once: true,
       priority: 88
+    },
+    {
+      id: 'ngp_intro_xingchen',
+      title: '星辰的低语',
+      description: '二周目的第一天，你总觉得有人在注视着你。转身望去，一位银发少女正站在街角微笑。"又见面了...或者说，初次见面？"',
+      characterId: 'xingchen',
+      triggerCondition: { minDay: 1, maxDay: 2, timeOfDay: 'morning', requiredFlags: ['new_game_plus'] },
+      choices: [
+        {
+          id: 'talk',
+          text: '上前搭话',
+          effects: [{ characterId: 'xingchen', affinityChange: 10, moodChange: 10 }],
+          unlockCharacterId: 'xingchen',
+          addCardId: 'xingchen_common_1'
+        },
+        {
+          id: 'ignore',
+          text: '她在和别人说话吧',
+          effects: [{ characterId: 'xingchen', affinityChange: -5 }]
+        }
+      ],
+      once: true,
+      priority: 200
+    },
+    {
+      id: 'ngp_xingchen_hint',
+      title: '命运的提示',
+      description: '星辰找到你，递给你一张纸条。"有些事情，这一次要记得早点发现哦。"',
+      characterId: 'xingchen',
+      triggerCondition: { minDay: 5, characterId: 'xingchen', minAffinity: 20, requiredFlags: ['new_game_plus'] },
+      choices: [
+        {
+          id: 'read',
+          text: '认真阅读纸条',
+          effects: [{ characterId: 'xingchen', affinityChange: 8 }],
+          resourceChange: 30
+        },
+        {
+          id: 'ask',
+          text: '直接问她是什么意思',
+          effects: [{ characterId: 'xingchen', affinityChange: 5, moodChange: 5 }]
+        }
+      ],
+      once: true,
+      priority: 75
+    },
+    {
+      id: 'ngp_mystery_unlock',
+      title: '真相的碎片',
+      description: '在星辰的引导下，你开始发现这座城市不为人知的秘密...',
+      triggerCondition: { minDay: 15, requiredFlags: ['new_game_plus', 'hard_or_higher'] },
+      choices: [
+        {
+          id: 'investigate',
+          text: '深入调查',
+          effects: [{ characterId: 'xingchen', affinityChange: 15 }]
+        },
+        {
+          id: 'stop',
+          text: '有些事还是不知道为好',
+          effects: []
+        }
+      ],
+      once: true,
+      priority: 70
+    },
+    {
+      id: 'ngp_true_path',
+      title: '通往真实之门',
+      description: '只有在噩梦难度下，所有的线索才会汇聚成完整的真相。星辰的眼中闪着泪光："这一次，你能拯救大家吗？"',
+      triggerCondition: { minDay: 25, requiredFlags: ['new_game_plus', 'nightmare_mode', 'unlock_mystery'] },
+      choices: [
+        {
+          id: 'accept',
+          text: '握紧她的手，接受命运',
+          effects: [
+            { characterId: 'xingchen', affinityChange: 20 },
+            { characterId: 'linxiaoyu', affinityChange: 5 },
+            { characterId: 'sufei', affinityChange: 5 },
+            { characterId: 'yeqing', affinityChange: 5 }
+          ]
+        }
+      ],
+      once: true,
+      priority: 150
+    },
+    {
+      id: 'ngp_hidden_birthday',
+      title: '星辰的生日',
+      description: '你从之前的记忆中想起，今天是星辰的生日。要为她准备什么呢？',
+      characterId: 'xingchen',
+      triggerCondition: { minDay: 20, minAffinity: 50, characterId: 'xingchen', requiredFlags: ['new_game_plus'] },
+      choices: [
+        {
+          id: 'surprise',
+          text: '准备一个惊喜派对',
+          effects: [{ characterId: 'xingchen', affinityChange: 30, moodChange: 30 }],
+          resourceChange: -80
+        },
+        {
+          id: 'gift',
+          text: '送一份贴心的礼物',
+          effects: [{ characterId: 'xingchen', affinityChange: 15, moodChange: 15 }],
+          resourceChange: -30
+        }
+      ],
+      once: true,
+      priority: 92
     }
   ],
 
