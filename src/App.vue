@@ -41,7 +41,7 @@ function handleReset() {
 
 function handleStartNgpFromEnding() {
   gameStore.closeEndingModal()
-  showNgpModal = true
+  showNgpModal.value = true
 }
 
 onMounted(() => {
